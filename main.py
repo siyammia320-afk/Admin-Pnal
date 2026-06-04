@@ -4,7 +4,6 @@ import threading
 import re
 import json
 import os
-import random
 from datetime import datetime
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -13,148 +12,347 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 TELEGRAM_TOKEN = "8649024139:AAHH_d9BJTzYSnOGUEM7QIarc1czMMV_aTM"
 ADMIN_ID = 7787612625
 
-BASE_URL = "https://mknetworkbd.com"
+XMNIT_BASE_URL = "https://x.mnitnetwork.com"
 LOG_GROUP_ID = "-1003538330629"
 OTP_GROUP_URL = "https://t.me/power_otp_botx"
 
-# ==================== কান্ট্রি ফ্ল্যাগ এবং কোড ম্যাপ ====================
+# ==================== লগইন তথ্য ====================
+LOGIN_EMAIL = "minhajurrahmanrabbi20@gmail.com"
+LOGIN_PASSWORD = "minhajur_rahman_rabbi_"
+AUTH_TOKEN = None
+
+# ==================== কান্ট্রি ফ্ল্যাগ এবং কোড ম্যাপ (প্রিফিক্স অনুযায়ী) ====================
 COUNTRY_FLAGS = {
-    "Andorra": "🇦🇩", "United Arab Emirates": "🇦🇪", "Afghanistan": "🇦🇫", "Antigua and Barbuda": "🇦🇬",
-    "Anguilla": "🇦🇮", "Albania": "🇦🇱", "Armenia": "🇦🇲", "Angola": "🇦🇴", "Antarctica": "🇦🇶",
-    "Argentina": "🇦🇷", "American Samoa": "🇦🇸", "Austria": "🇦🇹", "Australia": "🇦🇺", "Aruba": "🇦🇼",
-    "Aland Islands": "🇦🇽", "Azerbaijan": "🇦🇿", "Bosnia and Herzegovina": "🇧🇦", "Barbados": "🇧🇧",
-    "Bangladesh": "🇧🇩", "Belgium": "🇧🇪", "Burkina Faso": "🇧🇫", "Bulgaria": "🇧🇬", "Bahrain": "🇧🇭",
-    "Burundi": "🇧🇮", "Benin": "🇧🇯", "Saint Barthelemy": "🇧🇱", "Bermuda": "🇧🇲", "Brunei Darussalam": "🇧🇳",
-    "Bolivia": "🇧🇴", "Bonaire": "🇧🇶", "Brazil": "🇧🇷", "Bahamas": "🇧🇸", "Bhutan": "🇧🇹",
-    "Bouvet Island": "🇧🇻", "Botswana": "🇧🇼", "Belarus": "🇧🇾", "Belize": "🇧🇿", "Canada": "🇨🇦",
-    "Cocos Islands": "🇨🇨", "Congo": "🇨🇩", "Central African Republic": "🇨🇫", "Congo Republic": "🇨🇬",
-    "Switzerland": "🇨🇭", "Cote d'Ivoire": "🇨🇮", "Ivory Coast": "🇨🇮", "Cook Islands": "🇨🇰", "Chile": "🇨🇱",
-    "Cameroon": "🇨🇲", "China": "🇨🇳", "Colombia": "🇨🇴", "Costa Rica": "🇨🇷", "Cuba": "🇨🇺",
-    "Cape Verde": "🇨🇻", "Curacao": "🇨🇼", "Christmas Island": "🇨🇽", "Cyprus": "🇨🇾", "Czech Republic": "🇨🇿",
-    "Germany": "🇩🇪", "Djibouti": "🇩🇯", "Denmark": "🇩🇰", "Dominica": "🇩🇲", "Dominican Republic": "🇩🇴",
-    "Algeria": "🇩🇿", "Ecuador": "🇪🇨", "Estonia": "🇪🇪", "Egypt": "🇪🇬", "Western Sahara": "🇪🇭",
-    "Eritrea": "🇪🇷", "Spain": "🇪🇸", "Ethiopia": "🇪🇹", "Finland": "🇫🇮", "Fiji": "🇫🇯",
-    "Falkland Islands": "🇫🇰", "Micronesia": "🇫🇲", "Faroe Islands": "🇫🇴", "France": "🇫🇷", "Gabon": "🇬🇦",
-    "United Kingdom": "🇬🇧", "Grenada": "🇬🇩", "Georgia": "🇬🇪", "French Guiana": "🇬🇫", "Guernsey": "🇬🇬",
-    "Ghana": "🇬🇭", "Gibraltar": "🇬🇮", "Greenland": "🇬🇱", "Gambia": "🇬🇲", "Guinea": "🇬🇳",
-    "Guadeloupe": "🇬🇵", "Equatorial Guinea": "🇬🇶", "Greece": "🇬🇷", "South Georgia": "🇬🇸", "Guatemala": "🇬🇹",
-    "Guam": "🇬🇺", "Guinea-Bissau": "🇬🇼", "Guyana": "🇬🇾", "Hong Kong": "🇭🇰", "Heard Island": "🇭🇲",
-    "Honduras": "🇭🇳", "Croatia": "🇭🇷", "Haiti": "🇭🇹", "Hungary": "🇭🇺", "Indonesia": "🇮🇩",
-    "Ireland": "🇮🇪", "Israel": "🇮🇱", "Isle of Man": "🇮🇲", "India": "🇮🇳", "British Indian Ocean Territory": "🇮🇴",
-    "Iraq": "🇮🇶", "Iran": "🇮🇷", "Iceland": "🇮🇸", "Italy": "🇮🇹", "Jersey": "🇯🇪", "Jamaica": "🇯🇲",
-    "Jordan": "🇯🇴", "Japan": "🇯🇵", "Kenya": "🇰🇪", "Kyrgyzstan": "🇰🇬", "Cambodia": "🇰🇭",
-    "Kiribati": "🇰🇮", "Comoros": "🇰🇲", "Saint Kitts and Nevis": "🇰🇳", "North Korea": "🇰🇵",
-    "South Korea": "🇰🇷", "Kuwait": "🇰🇼", "Cayman Islands": "🇰🇾", "Kazakhstan": "🇰🇿",
-    "Laos": "🇱🇦", "Lebanon": "🇱🇧", "Saint Lucia": "🇱🇨", "Liechtenstein": "🇱🇮", "Sri Lanka": "🇱🇰",
-    "Liberia": "🇱🇷", "Lesotho": "🇱🇸", "Lithuania": "🇱🇹", "Luxembourg": "🇱🇺", "Latvia": "🇱🇻",
-    "Libya": "🇱🇾", "Morocco": "🇲🇦", "Monaco": "🇲🇨", "Moldova": "🇲🇩", "Montenegro": "🇲🇪",
-    "Saint Martin": "🇲🇫", "Madagascar": "🇲🇬", "Marshall Islands": "🇲🇭", "North Macedonia": "🇲🇰",
-    "Mali": "🇲🇱", "Myanmar": "🇲🇲", "Mongolia": "🇲🇳", "Macao": "🇲🇴", "Northern Mariana Islands": "🇲🇵",
-    "Martinique": "🇲🇶", "Mauritania": "🇲🇷", "Montserrat": "🇲🇸", "Malta": "🇲🇹", "Mauritius": "🇲🇺",
-    "Maldives": "🇲🇻", "Malawi": "🇲🇼", "Mexico": "🇲🇽", "Malaysia": "🇲🇾", "Mozambique": "🇲🇿",
-    "Namibia": "🇳🇦", "New Caledonia": "🇳🇨", "Niger": "🇳🇪", "Norfolk Island": "🇳🇫", "Nigeria": "🇳🇬",
-    "Nicaragua": "🇳🇮", "Netherlands": "🇳🇱", "Norway": "🇳🇴", "Nepal": "🇳🇵", "Nauru": "🇳🇷",
-    "Niue": "🇳🇺", "New Zealand": "🇳🇿", "Oman": "🇴🇲", "Panama": "🇵🇦", "Peru": "🇵🇪",
-    "French Polynesia": "🇵🇫", "Papua New Guinea": "🇵🇬", "Philippines": "🇵🇭", "Pakistan": "🇵🇰",
-    "Poland": "🇵🇱", "Saint Pierre and Miquelon": "🇵🇲", "Pitcairn": "🇵🇳", "Puerto Rico": "🇵🇷",
-    "Palestine": "🇵🇸", "Portugal": "🇵🇹", "Palau": "🇵🇼", "Paraguay": "🇵🇾", "Qatar": "🇶🇦",
-    "Reunion": "🇷🇪", "Romania": "🇷🇴", "Serbia": "🇷🇸", "Russia": "🇷🇺", "Rwanda": "🇷🇼",
-    "Saudi Arabia": "🇸🇦", "Solomon Islands": "🇸🇧", "Seychelles": "🇸🇨", "Sudan": "🇸🇩", "Sweden": "🇸🇪",
-    "Singapore": "🇸🇬", "Saint Helena": "🇸🇭", "Slovenia": "🇸🇮", "Svalbard and Jan Mayen": "🇸🇯",
-    "Slovakia": "🇸🇰", "Sierra Leone": "🇸🇱", "San Marino": "🇸🇲", "Senegal": "🇸🇳", "Somalia": "🇸🇴",
-    "Suriname": "🇸🇷", "South Sudan": "🇸🇸", "Sao Tome and Principe": "🇸🇹", "El Salvador": "🇸🇻",
-    "Sint Maarten": "🇸🇽", "Syria": "🇸🇾", "Eswatini": "🇸🇿", "Turks and Caicos Islands": "🇹🇨",
-    "Chad": "🇹🇩", "French Southern Territories": "🇹🇫", "Togo": "🇹🇬", "Thailand": "🇹🇭",
-    "Tajikistan": "🇹🇯", "Tokelau": "🇹🇰", "Timor-Leste": "🇹🇱", "Turkmenistan": "🇹🇲",
-    "Tunisia": "🇹🇳", "Tonga": "🇹🇴", "Turkey": "🇹🇷", "Trinidad and Tobago": "🇹🇹",
-    "Tuvalu": "🇹🇻", "Taiwan": "🇹🇼", "Tanzania": "🇹🇿", "Ukraine": "🇺🇦", "Uganda": "🇺🇬",
-    "United States": "🇺🇸", "Uruguay": "🇺🇾", "Uzbekistan": "🇺🇿", "Vatican City": "🇻🇦",
-    "Saint Vincent and the Grenadines": "🇻🇨", "Venezuela": "🇻🇪", "Virgin Islands British": "🇻🇬",
-    "Virgin Islands US": "🇻🇮", "Vietnam": "🇻🇳", "Vanuatu": "🇻🇺", "Wallis and Futuna": "🇼🇫",
-    "Samoa": "🇼🇸", "Yemen": "🇾🇪", "Mayotte": "🇾🇹", "South Africa": "🇿🇦", "Zambia": "🇿🇲",
-    "Zimbabwe": "🇿🇼"
+    "AD": "🇦🇩", "AE": "🇦🇪", "AF": "🇦🇫", "AG": "🇦🇬", "AI": "🇦🇮", "AL": "🇦🇱",
+    "AM": "🇦🇲", "AO": "🇦🇴", "AQ": "🇦🇶", "AR": "🇦🇷", "AS": "🇦🇸", "AT": "🇦🇹",
+    "AU": "🇦🇺", "AW": "🇦🇼", "AX": "🇦🇽", "AZ": "🇦🇿", "BA": "🇧🇦", "BB": "🇧🇧",
+    "BD": "🇧🇩", "BE": "🇧🇪", "BF": "🇧🇫", "BG": "🇧🇬", "BH": "🇧🇭", "BI": "🇧🇮",
+    "BJ": "🇧🇯", "BL": "🇧🇱", "BM": "🇧🇲", "BN": "🇧🇳", "BO": "🇧🇴", "BQ": "🇧🇶",
+    "BR": "🇧🇷", "BS": "🇧🇸", "BT": "🇧🇹", "BV": "🇧🇻", "BW": "🇧🇼", "BY": "🇧🇾",
+    "BZ": "🇧🇿", "CA": "🇨🇦", "CC": "🇨🇨", "CD": "🇨🇩", "CF": "🇨🇫", "CG": "🇨🇬",
+    "CH": "🇨🇭", "CI": "🇨🇮", "CK": "🇨🇰", "CL": "🇨🇱", "CM": "🇨🇲", "CN": "🇨🇳",
+    "CO": "🇨🇴", "CR": "🇨🇷", "CU": "🇨🇺", "CV": "🇨🇻", "CW": "🇨🇼", "CX": "🇨🇽",
+    "CY": "🇨🇾", "CZ": "🇨🇿", "DE": "🇩🇪", "DJ": "🇩🇯", "DK": "🇩🇰", "DM": "🇩🇲",
+    "DO": "🇩🇴", "DZ": "🇩🇿", "EC": "🇪🇨", "EE": "🇪🇪", "EG": "🇪🇬", "EH": "🇪🇭",
+    "ER": "🇪🇷", "ES": "🇪🇸", "ET": "🇪🇹", "FI": "🇫🇮", "FJ": "🇫🇯", "FK": "🇫🇰",
+    "FM": "🇫🇲", "FO": "🇫🇴", "FR": "🇫🇷", "GA": "🇬🇦", "GB": "🇬🇧", "GD": "🇬🇩",
+    "GE": "🇬🇪", "GF": "🇬🇫", "GG": "🇬🇬", "GH": "🇬🇭", "GI": "🇬🇮", "GL": "🇬🇱",
+    "GM": "🇬🇲", "GN": "🇬🇳", "GP": "🇬🇵", "GQ": "🇬🇶", "GR": "🇬🇷", "GS": "🇬🇸",
+    "GT": "🇬🇹", "GU": "🇬🇺", "GW": "🇬🇼", "GY": "🇬🇾", "HK": "🇭🇰", "HM": "🇭🇲",
+    "HN": "🇭🇳", "HR": "🇭🇷", "HT": "🇭🇹", "HU": "🇭🇺", "ID": "🇮🇩", "IE": "🇮🇪",
+    "IL": "🇮🇱", "IM": "🇮🇲", "IN": "🇮🇳", "IO": "🇮🇴", "IQ": "🇮🇶", "IR": "🇮🇷",
+    "IS": "🇮🇸", "IT": "🇮🇹", "JE": "🇯🇪", "JM": "🇯🇲", "JO": "🇯🇴", "JP": "🇯🇵",
+    "KE": "🇰🇪", "KG": "🇰🇬", "KH": "🇰🇭", "KI": "🇰🇮", "KM": "🇰🇲", "KN": "🇰🇳",
+    "KP": "🇰🇵", "KR": "🇰🇷", "KW": "🇰🇼", "KY": "🇰🇾", "KZ": "🇰🇿", "LA": "🇱🇦",
+    "LB": "🇱🇧", "LC": "🇱🇨", "LI": "🇱🇮", "LK": "🇱🇰", "LR": "🇱🇷", "LS": "🇱🇸",
+    "LT": "🇱🇹", "LU": "🇱🇺", "LV": "🇱🇻", "LY": "🇱🇾", "MA": "🇲🇦", "MC": "🇲🇨",
+    "MD": "🇲🇩", "ME": "🇲🇪", "MF": "🇲🇫", "MG": "🇲🇬", "MH": "🇲🇭", "MK": "🇲🇰",
+    "ML": "🇲🇱", "MM": "🇲🇲", "MN": "🇲🇳", "MO": "🇲🇴", "MP": "🇲🇵", "MQ": "🇲🇶",
+    "MR": "🇲🇷", "MS": "🇲🇸", "MT": "🇲🇹", "MU": "🇲🇺", "MV": "🇲🇻", "MW": "🇲🇼",
+    "MX": "🇲🇽", "MY": "🇲🇾", "MZ": "🇲🇿", "NA": "🇳🇦", "NC": "🇳🇨", "NE": "🇳🇪",
+    "NF": "🇳🇫", "NG": "🇳🇬", "NI": "🇳🇮", "NL": "🇳🇱", "NO": "🇳🇴", "NP": "🇳🇵",
+    "NR": "🇳🇷", "NU": "🇳🇺", "NZ": "🇳🇿", "OM": "🇴🇲", "PA": "🇵🇦", "PE": "🇵🇪",
+    "PF": "🇵🇫", "PG": "🇵🇬", "PH": "🇵🇭", "PK": "🇵🇰", "PL": "🇵🇱", "PM": "🇵🇲",
+    "PN": "🇵🇳", "PR": "🇵🇷", "PS": "🇵🇸", "PT": "🇵🇹", "PW": "🇵🇼", "PY": "🇵🇾",
+    "QA": "🇶🇦", "RE": "🇷🇪", "RO": "🇷🇴", "RS": "🇷🇸", "RU": "🇷🇺", "RW": "🇷🇼",
+    "SA": "🇸🇦", "SB": "🇸🇧", "SC": "🇸🇨", "SD": "🇸🇩", "SE": "🇸🇪", "SG": "🇸🇬",
+    "SH": "🇸🇭", "SI": "🇸🇮", "SJ": "🇸🇯", "SK": "🇸🇰", "SL": "🇸🇱", "SM": "🇸🇲",
+    "SN": "🇸🇳", "SO": "🇸🇴", "SR": "🇸🇷", "SS": "🇸🇸", "ST": "🇸🇹", "SV": "🇸🇻",
+    "SX": "🇸🇽", "SY": "🇸🇾", "SZ": "🇸🇿", "TC": "🇹🇨", "TD": "🇹🇩", "TF": "🇹🇫",
+    "TG": "🇹🇬", "TH": "🇹🇭", "TJ": "🇹🇯", "TK": "🇹🇰", "TL": "🇹🇱", "TM": "🇹🇲",
+    "TN": "🇹🇳", "TO": "🇹🇴", "TR": "🇹🇷", "TT": "🇹🇹", "TV": "🇹🇻", "TW": "🇹🇼",
+    "TZ": "🇹🇿", "UA": "🇺🇦", "UG": "🇺🇬", "UM": "🇺🇲", "US": "🇺🇸", "UY": "🇺🇾",
+    "UZ": "🇺🇿", "VA": "🇻🇦", "VC": "🇻🇨", "VE": "🇻🇪", "VG": "🇻🇬", "VI": "🇻🇮",
+    "VN": "🇻🇳", "VU": "🇻🇺", "WF": "🇼🇫", "WS": "🇼🇸", "YE": "🇾🇪", "YT": "🇾🇹",
+    "ZA": "🇿🇦", "ZM": "🇿🇲", "ZW": "🇿🇼"
 }
 
-COUNTRY_SHORT = {
-    "Cote d'Ivoire": "CI", "Ivory Coast": "CI",
-    "Togo": "TG", "Sierra Leone": "SL",
-    "Bangladesh": "BD", "Cameroon": "CM",
-    "India": "IN", "Pakistan": "PK",
-    "United Kingdom": "UK", "United States": "US",
-    "Canada": "CA", "France": "FR", "Germany": "DE",
-    "Unknown": "XX"
+COUNTRY_NAMES = {
+    "AD": "Andorra", "AE": "United Arab Emirates", "AF": "Afghanistan", "AG": "Antigua and Barbuda",
+    "AI": "Anguilla", "AL": "Albania", "AM": "Armenia", "AO": "Angola", "AQ": "Antarctica",
+    "AR": "Argentina", "AS": "American Samoa", "AT": "Austria", "AU": "Australia", "AW": "Aruba",
+    "AX": "Aland Islands", "AZ": "Azerbaijan", "BA": "Bosnia and Herzegovina", "BB": "Barbados",
+    "BD": "Bangladesh", "BE": "Belgium", "BF": "Burkina Faso", "BG": "Bulgaria", "BH": "Bahrain",
+    "BI": "Burundi", "BJ": "Benin", "BL": "Saint Barthelemy", "BM": "Bermuda", "BN": "Brunei Darussalam",
+    "BO": "Bolivia", "BQ": "Bonaire", "BR": "Brazil", "BS": "Bahamas", "BT": "Bhutan",
+    "BV": "Bouvet Island", "BW": "Botswana", "BY": "Belarus", "BZ": "Belize", "CA": "Canada",
+    "CC": "Cocos Islands", "CD": "Congo DR", "CF": "Central African Republic", "CG": "Congo Republic",
+    "CH": "Switzerland", "CI": "Ivory Coast", "CK": "Cook Islands", "CL": "Chile", "CM": "Cameroon",
+    "CN": "China", "CO": "Colombia", "CR": "Costa Rica", "CU": "Cuba", "CV": "Cape Verde",
+    "CW": "Curacao", "CX": "Christmas Island", "CY": "Cyprus", "CZ": "Czech Republic", "DE": "Germany",
+    "DJ": "Djibouti", "DK": "Denmark", "DM": "Dominica", "DO": "Dominican Republic", "DZ": "Algeria",
+    "EC": "Ecuador", "EE": "Estonia", "EG": "Egypt", "EH": "Western Sahara", "ER": "Eritrea",
+    "ES": "Spain", "ET": "Ethiopia", "FI": "Finland", "FJ": "Fiji", "FK": "Falkland Islands",
+    "FM": "Micronesia", "FO": "Faroe Islands", "FR": "France", "GA": "Gabon", "GB": "United Kingdom",
+    "GD": "Grenada", "GE": "Georgia", "GF": "French Guiana", "GG": "Guernsey", "GH": "Ghana",
+    "GI": "Gibraltar", "GL": "Greenland", "GM": "Gambia", "GN": "Guinea", "GP": "Guadeloupe",
+    "GQ": "Equatorial Guinea", "GR": "Greece", "GS": "South Georgia", "GT": "Guatemala", "GU": "Guam",
+    "GW": "Guinea-Bissau", "GY": "Guyana", "HK": "Hong Kong", "HM": "Heard Island", "HN": "Honduras",
+    "HR": "Croatia", "HT": "Haiti", "HU": "Hungary", "ID": "Indonesia", "IE": "Ireland", "IL": "Israel",
+    "IM": "Isle of Man", "IN": "India", "IO": "British Indian Ocean Territory", "IQ": "Iraq",
+    "IR": "Iran", "IS": "Iceland", "IT": "Italy", "JE": "Jersey", "JM": "Jamaica", "JO": "Jordan",
+    "JP": "Japan", "KE": "Kenya", "KG": "Kyrgyzstan", "KH": "Cambodia", "KI": "Kiribati",
+    "KM": "Comoros", "KN": "Saint Kitts and Nevis", "KP": "North Korea", "KR": "South Korea",
+    "KW": "Kuwait", "KY": "Cayman Islands", "KZ": "Kazakhstan", "LA": "Laos", "LB": "Lebanon",
+    "LC": "Saint Lucia", "LI": "Liechtenstein", "LK": "Sri Lanka", "LR": "Liberia", "LS": "Lesotho",
+    "LT": "Lithuania", "LU": "Luxembourg", "LV": "Latvia", "LY": "Libya", "MA": "Morocco",
+    "MC": "Monaco", "MD": "Moldova", "ME": "Montenegro", "MF": "Saint Martin", "MG": "Madagascar",
+    "MH": "Marshall Islands", "MK": "North Macedonia", "ML": "Mali", "MM": "Myanmar", "MN": "Mongolia",
+    "MO": "Macao", "MP": "Northern Mariana Islands", "MQ": "Martinique", "MR": "Mauritania",
+    "MS": "Montserrat", "MT": "Malta", "MU": "Mauritius", "MV": "Maldives", "MW": "Malawi",
+    "MX": "Mexico", "MY": "Malaysia", "MZ": "Mozambique", "NA": "Namibia", "NC": "New Caledonia",
+    "NE": "Niger", "NF": "Norfolk Island", "NG": "Nigeria", "NI": "Nicaragua", "NL": "Netherlands",
+    "NO": "Norway", "NP": "Nepal", "NR": "Nauru", "NU": "Niue", "NZ": "New Zealand", "OM": "Oman",
+    "PA": "Panama", "PE": "Peru", "PF": "French Polynesia", "PG": "Papua New Guinea", "PH": "Philippines",
+    "PK": "Pakistan", "PL": "Poland", "PM": "Saint Pierre and Miquelon", "PN": "Pitcairn",
+    "PR": "Puerto Rico", "PS": "Palestine", "PT": "Portugal", "PW": "Palau", "PY": "Paraguay",
+    "QA": "Qatar", "RE": "Reunion", "RO": "Romania", "RS": "Serbia", "RU": "Russia", "RW": "Rwanda",
+    "SA": "Saudi Arabia", "SB": "Solomon Islands", "SC": "Seychelles", "SD": "Sudan", "SE": "Sweden",
+    "SG": "Singapore", "SH": "Saint Helena", "SI": "Slovenia", "SJ": "Svalbard", "SK": "Slovakia",
+    "SL": "Sierra Leone", "SM": "San Marino", "SN": "Senegal", "SO": "Somalia", "SR": "Suriname",
+    "SS": "South Sudan", "ST": "Sao Tome and Principe", "SV": "El Salvador", "SX": "Sint Maarten",
+    "SY": "Syria", "SZ": "Eswatini", "TC": "Turks and Caicos Islands", "TD": "Chad", "TF": "French Southern Territories",
+    "TG": "Togo", "TH": "Thailand", "TJ": "Tajikistan", "TK": "Tokelau", "TL": "Timor-Leste",
+    "TM": "Turkmenistan", "TN": "Tunisia", "TO": "Tonga", "TR": "Turkey", "TT": "Trinidad and Tobago",
+    "TV": "Tuvalu", "TW": "Taiwan", "TZ": "Tanzania", "UA": "Ukraine", "UG": "Uganda",
+    "UM": "US Minor Outlying Islands", "US": "United States", "UY": "Uruguay", "UZ": "Uzbekistan",
+    "VA": "Vatican City", "VC": "Saint Vincent and the Grenadines", "VE": "Venezuela", "VG": "Virgin Islands British",
+    "VI": "Virgin Islands US", "VN": "Vietnam", "VU": "Vanuatu", "WF": "Wallis and Futuna",
+    "WS": "Samoa", "YE": "Yemen", "YT": "Mayotte", "ZA": "South Africa", "ZM": "Zambia", "ZW": "Zimbabwe"
 }
 
-COUNTRY_CODES = {
-    "225": "Cote d'Ivoire", "228": "Togo", "232": "Sierra Leone",
-    "880": "Bangladesh", "237": "Cameroon", "91": "India", "92": "Pakistan",
-    "44": "United Kingdom", "1": "United States"
+# প্রিফিক্স থেকে কান্ট্রি শর্ট কোড ম্যাপিং
+PREFIX_TO_COUNTRY = {
+    "1": "US", "7": "RU", "20": "EG", "27": "ZA", "30": "GR", "31": "NL", "32": "BE",
+    "33": "FR", "34": "ES", "36": "HU", "39": "IT", "40": "RO", "41": "CH", "43": "AT",
+    "44": "GB", "45": "DK", "46": "SE", "47": "NO", "48": "PL", "49": "DE", "51": "PE",
+    "52": "MX", "53": "CU", "54": "AR", "55": "BR", "56": "CL", "57": "CO", "58": "VE",
+    "60": "MY", "61": "AU", "62": "ID", "63": "PH", "64": "NZ", "65": "SG", "66": "TH",
+    "81": "JP", "82": "KR", "84": "VN", "86": "CN", "90": "TR", "91": "IN", "92": "PK",
+    "93": "AF", "94": "LK", "95": "MM", "98": "IR", "211": "SS", "212": "MA", "213": "DZ",
+    "216": "TN", "218": "LY", "220": "GM", "221": "SN", "222": "MR", "223": "ML", "224": "GN",
+    "225": "CI", "226": "BF", "227": "NE", "228": "TG", "229": "BJ", "230": "MU", "231": "LR",
+    "232": "SL", "233": "GH", "234": "NG", "235": "TD", "236": "CF", "237": "CM", "238": "CV",
+    "239": "ST", "240": "GQ", "241": "GA", "242": "CG", "243": "CD", "244": "AO", "245": "GW",
+    "246": "IO", "247": "AC", "248": "SC", "249": "SD", "250": "RW", "251": "ET", "252": "SO",
+    "253": "DJ", "254": "KE", "255": "TZ", "256": "UG", "257": "BI", "258": "MZ", "260": "ZM",
+    "261": "MG", "262": "RE", "263": "ZW", "264": "NA", "265": "MW", "266": "LS", "267": "BW",
+    "268": "SZ", "269": "KM", "290": "SH", "291": "ER", "297": "AW", "298": "FO", "299": "GL",
+    "350": "GI", "351": "PT", "352": "LU", "353": "IE", "354": "IS", "355": "AL", "356": "MT",
+    "357": "CY", "358": "FI", "359": "BG", "370": "LT", "371": "LV", "372": "EE", "373": "MD",
+    "374": "AM", "375": "BY", "376": "AD", "377": "MC", "378": "SM", "379": "VA", "380": "UA",
+    "381": "RS", "382": "ME", "383": "XK", "385": "HR", "386": "SI", "387": "BA", "389": "MK",
+    "420": "CZ", "421": "SK", "423": "LI", "500": "FK", "501": "BZ", "502": "GT", "503": "SV",
+    "504": "HN", "505": "NI", "506": "CR", "507": "PA", "508": "PM", "509": "HT", "590": "GP",
+    "591": "BO", "592": "GY", "593": "EC", "594": "GF", "595": "PY", "596": "MQ", "597": "SR",
+    "598": "UY", "599": "CW", "670": "TL", "672": "NF", "673": "BN", "674": "NR", "675": "PG",
+    "676": "TO", "677": "SB", "678": "VU", "679": "FJ", "680": "PW", "681": "WF", "682": "CK",
+    "683": "NU", "685": "WS", "686": "KI", "687": "NC", "688": "TV", "689": "PF", "690": "TK",
+    "691": "FM", "692": "MH", "850": "KP", "852": "HK", "853": "MO", "855": "KH", "856": "LA",
+    "880": "BD", "886": "TW", "960": "MV", "961": "LB", "962": "JO", "963": "SY", "964": "IQ",
+    "965": "KW", "966": "SA", "967": "YE", "968": "OM", "970": "PS", "971": "AE", "972": "IL",
+    "973": "BH", "974": "QA", "975": "BT", "976": "MN", "977": "NP", "992": "TJ", "993": "TM",
+    "994": "AZ", "995": "GE", "996": "KG", "998": "UZ"
 }
 
-# ==================== MKNetworkBD লগইন ====================
-LOGIN_EMAIL = "marcomax962@gmail.com"
-LOGIN_PASSWORD = "Ashik515385"
-SESSION = requests.Session()
-LOGGED_IN = False
+def get_country_info_from_range(range_code):
+    """রেঞ্জ কোড থেকে কান্ট্রি তথ্য বের করে (যেমন: 880XXXXXXX থেকে 880)"""
+    # X বাদ দিয়ে শুধু সংখ্যা নিন
+    range_str = str(range_code).replace("X", "").strip()
+    # সর্বোচ্চ 4 ডিজিট পর্যন্ত চেক করুন
+    for length in range(4, 0, -1):
+        prefix = range_str[:length]
+        if prefix in PREFIX_TO_COUNTRY:
+            country_code = PREFIX_TO_COUNTRY[prefix]
+            country_name = COUNTRY_NAMES.get(country_code, "Unknown")
+            flag = COUNTRY_FLAGS.get(country_code, "🌍")
+            return country_code, country_name, flag
+    return "XX", "Unknown", "🌍"
 
-def mk_login():
-    global LOGGED_IN, SESSION
-    login_url = f"{BASE_URL}/login.php"
+def format_range_with_flag(range_code):
+    """রেঞ্জের সাথে ফ্ল্যাগ যোগ করে (যেমন: 🇧🇩 880XXXXXXX)"""
+    country_code, country_name, flag = get_country_info_from_range(range_code)
+    return f"{flag} {range_code}"
+
+# ==================== XMNIT লগইন ====================
+def xmnit_login():
+    global AUTH_TOKEN
+    login_url = f"{XMNIT_BASE_URL}/mapi/v1/mauth/login"
     headers = {
         "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Origin": BASE_URL,
-        "Referer": f"{BASE_URL}/login.php",
+        "Content-Type": "application/json",
+        "Origin": XMNIT_BASE_URL,
+        "Referer": f"{XMNIT_BASE_URL}/mauth/login",
         "x-requested-with": "mark.via.gp"
     }
-    data = {
-        "login_id": LOGIN_EMAIL,
-        "password": LOGIN_PASSWORD
-    }
+    payload = {"email": LOGIN_EMAIL, "password": LOGIN_PASSWORD}
     
     try:
-        response = SESSION.post(login_url, headers=headers, data=data, timeout=15)
-        if response.status_code == 302 or "index.php" in response.text:
-            LOGGED_IN = True
-            print("✅ Login Success!")
-            return True
+        response = requests.post(login_url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            AUTH_TOKEN = data.get("data", {}).get("token")
+            if AUTH_TOKEN:
+                print("✅ XMNIT Login Success!")
+                return True
     except Exception as e:
         print(f"❌ Login Failed: {e}")
     return False
 
-# ==================== OTP এক্সট্রাক্ট ফাংশন (ইমপ্রুভড) ====================
-def extract_otp_from_text(text):
-    """
-    ফুল SMS টেক্সট থেকে OTP বের করে
-    উদাহরণ:
-    "confirm code 283 283" -> "283283"
-    "confirm code 82739" -> "82739"
-    "828-828" -> "828828"
-    "82729382" -> "82729382"
-    """
-    text = str(text)
+# ==================== XMNIT API ফাংশন ====================
+def xmnit_get_live_ranges(service):
+    global AUTH_TOKEN
+    if not AUTH_TOKEN:
+        xmnit_login()
     
-    # প্রথমে সমস্ত স্পেস, হাইফেন, ডট, ড্যাশ বাদ দিন
+    try:
+        headers = {
+            "mauthtoken": AUTH_TOKEN,
+            "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
+            "x-requested-with": "mark.via.gp"
+        }
+        response = requests.get(f"{XMNIT_BASE_URL}/mapi/v1/mdashboard/console/info", headers=headers, timeout=15)
+        
+        if response.status_code == 401:
+            xmnit_login()
+            headers["mauthtoken"] = AUTH_TOKEN
+            response = requests.get(f"{XMNIT_BASE_URL}/mapi/v1/mdashboard/console/info", headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            logs = data.get("data", {}).get("logs", [])
+            ranges = []
+            for log in logs:
+                app_name = log.get("app_name", "").lower()
+                if service.lower() in app_name:
+                    rng = log.get("range")
+                    if rng:
+                        range_str = str(rng).upper().strip()
+                        # XXXXXX ফরম্যাটে রূপান্তর (শেষে X যোগ করুন)
+                        if not range_str.endswith('X'):
+                            digits_only = re.sub(r'[^0-9]', '', range_str)
+                            if digits_only:
+                                if len(digits_only) >= 10:
+                                    prefix = digits_only[:5] if len(digits_only) >= 11 else digits_only[:4]
+                                    range_str = prefix + "XXXXXX"
+                                else:
+                                    range_str = digits_only + "XXXXX"
+                        ranges.append(range_str)
+            # ইউনিক রেঞ্জ
+            ranges = list(dict.fromkeys(ranges))
+            # ফ্ল্যাগ সহ সাজান
+            ranges_with_flags = [(format_range_with_flag(r), r) for r in ranges]
+            ranges_with_flags.sort(key=lambda x: x[0])
+            return [(r[1], r[0]) for r in ranges_with_flags]  # (raw_range, display_text)
+    except Exception as e:
+        print(f"Ranges error: {e}")
+    return []
+
+def get_combined_fb_ig_ranges():
+    fb_data = xmnit_get_live_ranges("facebook")
+    ig_data = xmnit_get_live_ranges("instagram")
+    # ইউনিক রেঞ্জ
+    all_ranges = {}
+    for rng, display in fb_data:
+        all_ranges[rng] = display
+    for rng, display in ig_data:
+        if rng not in all_ranges:
+            all_ranges[rng] = display
+    # সাজান
+    sorted_items = sorted(all_ranges.items(), key=lambda x: x[1])
+    return [(rng, display) for rng, display in sorted_items]
+
+def xmnit_fetch_number(range_code):
+    global AUTH_TOKEN
+    if not AUTH_TOKEN:
+        xmnit_login()
+    
+    url = f"{XMNIT_BASE_URL}/mapi/v1/mdashboard/getnum/number"
+    headers = {
+        "mauthtoken": AUTH_TOKEN,
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
+        "Origin": XMNIT_BASE_URL,
+        "x-requested-with": "mark.via.gp"
+    }
+    payload = {"range": range_code, "is_national": False, "remove_plus": False}
+    
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        
+        if response.status_code == 401:
+            xmnit_login()
+            headers["mauthtoken"] = AUTH_TOKEN
+            response = requests.post(url, json=payload, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            number_data = data.get("data", {})
+            number = number_data.get("full_number") or number_data.get("number")
+            
+            if number:
+                return str(number).replace("+", "").strip()
+    except Exception as e:
+        print(f"Fetch error: {e}")
+    return None
+
+def xmnit_check_otp():
+    global AUTH_TOKEN
+    results = []
+    if not AUTH_TOKEN:
+        xmnit_login()
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        headers = {
+            "mauthtoken": AUTH_TOKEN,
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
+            "x-requested-with": "mark.via.gp"
+        }
+        response = requests.get(f"{XMNIT_BASE_URL}/mapi/v1/mdashboard/getnum/info?date={today}&page=1&search=&status=success", headers=headers, timeout=15)
+        
+        if response.status_code == 401:
+            xmnit_login()
+            headers["mauthtoken"] = AUTH_TOKEN
+            response = requests.get(f"{XMNIT_BASE_URL}/mapi/v1/mdashboard/getnum/info?date={today}&page=1&search=&status=success", headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            numbers_list = data.get("data", {}).get("numbers", [])
+            active = get_active_numbers()
+            
+            for item in numbers_list:
+                number = item.get("number", "")
+                message = item.get("message", "")
+                app_name = item.get("app_name", "")
+                
+                if str(number) in active:
+                    service = "Facebook/Instagram"
+                    
+                    otp = extract_otp_from_text(message)
+                    if otp != "N/A":
+                        results.append({
+                            "phone": number,
+                            "message": message,
+                            "otp": otp,
+                            "service": service,
+                            "range": active[str(number)].get("range", "")
+                        })
+    except Exception as e:
+        print(f"OTP error: {e}")
+    return results
+
+# ==================== OTP এক্সট্রাক্ট ====================
+def extract_otp_from_text(text):
+    text = str(text)
     clean_text = re.sub(r'[-\s\.]', '', text)
     
-    # প্যাটার্ন সমূহ (অর্ডার গুরুত্বপূর্ণ - বড় থেকে ছোট)
     patterns = [
-        # ইন্সটাগ্রাম/ফেসবুক স্পেসিফিক
-        r'(?:confirm|confirmation|verification|your|code|otp|is)[\s]*code[\s]*(\d{4,8})',
-        r'(?:confirm|confirmation|verification|your)[\s]+(\d{4,8})',
-        r'code[\s:;]+(\d{4,8})',
-        r'otp[\s:;]+(\d{4,8})',
-        
-        # 8 ডিজিট (সবচেয়ে বড়)
-        r'(\d{8})',
-        # 7 ডিজিট
-        r'(\d{7})',
-        # 6 ডিজিট (সবচেয়ে কমন)
-        r'(\d{6})',
-        # 5 ডিজিট
-        r'(\d{5})',
-        # 4 ডিজিট
-        r'(\d{4})',
+        r'FB[-]?(\d{5,6})',
+        r'code[:\s]*(\d{4,8})',
+        r'otp[:\s]*(\d{4,8})',
+        r'(\d{8})', r'(\d{7})', r'(\d{6})', r'(\d{5})', r'(\d{4})',
     ]
     
     for pattern in patterns:
@@ -164,24 +362,11 @@ def extract_otp_from_text(text):
             if len(otp) >= 4:
                 return otp
     
-    # যদি কোন প্যাটার্ন ম্যাচ না করে, তাহলে সব সংখ্যা বের করুন
     digits = re.findall(r'\d+', clean_text)
     for digit in digits:
         if len(digit) >= 4:
             return digit
-    
     return "N/A"
-
-def get_country_info(range_code):
-    clean_range = str(range_code).upper().replace("X", "").strip()
-    for length in [3, 2]:
-        prefix = clean_range[:length]
-        if prefix in COUNTRY_CODES:
-            country_name = COUNTRY_CODES[prefix]
-            flag = COUNTRY_FLAGS.get(country_name, "🌍")
-            short = COUNTRY_SHORT.get(country_name, "XX")
-            return country_name, flag, short
-    return "Unknown", "🌍", "XX"
 
 def mask_number_for_group(phone):
     phone_str = str(phone)
@@ -195,109 +380,7 @@ def mask_number(phone):
         return phone_str[:7] + "XXX" + phone_str[-2:]
     return phone_str
 
-# ==================== API ফাংশন ====================
-def get_live_ranges(service):
-    if not LOGGED_IN:
-        mk_login()
-    
-    try:
-        response = SESSION.get(f"{BASE_URL}/console.php?ajax=1", timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            feed = data.get("feed", [])
-            ranges = set()
-            for item in feed:
-                app_name = item.get("service_name", "").lower()
-                if service.lower() in app_name:
-                    rng = item.get("range")
-                    if rng:
-                        ranges.add(str(rng).upper().strip())
-            return sorted(list(ranges))[:20]
-    except Exception as e:
-        print(f"Ranges error: {e}")
-    return []
-
-def fetch_number(range_code):
-    if not LOGGED_IN:
-        mk_login()
-    
-    url = f"{BASE_URL}/API/api_handler_test.php"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36",
-        "Origin": BASE_URL,
-        "Referer": f"{BASE_URL}/getnum_test.php",
-        "x-requested-with": "mark.via.gp",
-        "Cookie": f"PHPSESSID={SESSION.cookies.get('PHPSESSID', '')}"
-    }
-    
-    boundary = "----WebKitFormBoundary" + ''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=16))
-    headers["Content-Type"] = f"multipart/form-data; boundary={boundary}"
-    
-    body = f"--{boundary}\r\nContent-Disposition: form-data; name=\"action\"\r\n\r\nget_number\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"range\"\r\n\r\n{range_code}\r\n--{boundary}--\r\n"
-    
-    try:
-        response = SESSION.post(url, headers=headers, data=body, timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            number = data.get("number", "")
-            if number:
-                return str(number).replace("+", "").strip()
-    except Exception as e:
-        print(f"Fetch error: {e}")
-    return None
-
-def check_otp():
-    results = []
-    if not LOGGED_IN:
-        mk_login()
-    
-    try:
-        response = SESSION.get(f"{BASE_URL}/API/api_handler_test.php?action=get_history&filter=all&page=1&limit=50", timeout=15)
-        if response.status_code == 200:
-            data = response.json()
-            numbers_list = data.get("data", [])
-            active = get_active_numbers()
-            
-            for phone in active:
-                for item in numbers_list:
-                    num = item.get("phone_number", "")
-                    if phone == num and item.get("status") == "success":
-                        # API থেকে আসা otps ফিল্ড ইগনোর করে ফুল মেসেজ ব্যবহার করুন
-                        full_message = item.get("full_sms_list", "")
-                        if full_message:
-                            # ফুল মেসেজ থেকে OTP এক্সট্রাক্ট করুন
-                            extracted_otp = extract_otp_from_text(full_message)
-                            if extracted_otp != "N/A":
-                                results.append({
-                                    "phone": phone,
-                                    "message": full_message,
-                                    "otp": extracted_otp,
-                                    "service": active[phone].get("service", "Unknown"),
-                                    "country": active[phone].get("country", "Unknown"),
-                                    "range": active[phone].get("range", "")
-                                })
-                                break
-    except Exception as e:
-        print(f"OTP check error: {e}")
-    return results
-
 # ==================== Monkey Patch ====================
-_old_inline_dict = InlineKeyboardButton.to_dict
-def _new_inline_dict(self):
-    d = _old_inline_dict(self)
-    if hasattr(self, 'style') and self.style:
-        d['style'] = self.style
-    return d
-InlineKeyboardButton.to_dict = _new_inline_dict
-
-_old_kb_dict = KeyboardButton.to_dict
-def _new_kb_dict(self):
-    d = _old_kb_dict(self)
-    if hasattr(self, 'style') and self.style:
-        d['style'] = self.style
-    return d
-KeyboardButton.to_dict = _new_kb_dict
-
 def ibtn(text, callback_data=None, url=None, style=None):
     b = InlineKeyboardButton(text=text, callback_data=callback_data, url=url)
     if style: b.style = style
@@ -309,11 +392,11 @@ def rbtn(text, style=None):
     return b
 
 # ==================== ডাটাবেস ====================
-USER_DB = "users.json"
-USER_DATA_DB = "user_data.json"
-SETTINGS_DB = "settings.json"
-WITHDRAWALS_DB = "withdrawals.json"
-ACTIVE_NUMBERS_DB = "active_numbers.json"
+USER_DB = "xmnit_users.json"
+USER_DATA_DB = "xmnit_user_data.json"
+SETTINGS_DB = "xmnit_settings.json"
+WITHDRAWALS_DB = "xmnit_withdrawals.json"
+ACTIVE_NUMBERS_DB = "xmnit_active_numbers.json"
 
 def init_databases():
     files = {
@@ -389,18 +472,21 @@ def save_active_numbers(numbers):
         json.dump(numbers, f)
 
 def add_active_number(phone, chat_id, service, range_code):
-    country_name, flag, short = get_country_info(range_code)
+    # রেঞ্জ থেকে কান্ট্রি ডিটেক্ট
+    country_code, country_name, flag = get_country_info_from_range(range_code)
+    
     data = get_active_numbers()
     data[str(phone)] = {
         "chat_id": chat_id,
         "service": service,
         "range": range_code,
-        "country": country_name,
+        "country_code": country_code,
+        "country_name": country_name,
         "country_flag": flag,
-        "country_short": short,
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     save_active_numbers(data)
+    print(f"✅ Saved: {phone} ({service}) - {country_name} {flag}")
 
 def remove_active_number(phone):
     data = get_active_numbers()
@@ -409,15 +495,14 @@ def remove_active_number(phone):
         save_active_numbers(data)
 
 # ==================== OTP নোটিফিকেশন ====================
-def send_otp_notification(chat_id, phone, service, otp, message, price, country, flag, country_short):
+def send_otp_notification(chat_id, phone, service, otp, message, price, country_name, flag, country_code):
     masked = mask_number(phone)
     
-    # ইনবক্স মেসেজ (পুরো ডিটেইলস)
     dm_msg = f"""✅ OTP RECEIVED!
 ━━━━━━━━━━━━━━━━━━━━
 📱 Number: `{phone}`
 🎯 Service: {service}
-🌍 Country: {country}
+🌍 Country: {country_name} {flag}
 ━━━━━━━━━━━━━━━━━━━━
 🔐 OTP Code: `{otp}`
 ━━━━━━━━━━━━━━━━━━━━
@@ -426,12 +511,10 @@ def send_otp_notification(chat_id, phone, service, otp, message, price, country,
 ━━━━━━━━━━━━━━━━━━━━
 💰 Income: +{price} BDT"""
     
-    # OTP গ্রুপ মেসেজ
-    service_short = "FB" if service.lower() == "facebook" else "IG" if service.lower() == "instagram" else "OTP"
+    service_short = "FB" if "facebook" in service.lower() else "IG"
     masked_phone = mask_number_for_group(phone)
-    group_msg = f"{flag} {country_short} {service_short} {masked_phone}"
+    group_msg = f"{flag} {country_code} {service_short} {masked_phone}"
     
-    # OTP বাটন
     markup = InlineKeyboardMarkup()
     markup.add(ibtn(f"🔐 {otp}", callback_data=f"copy_otp_{otp}", style="primary"))
     
@@ -441,7 +524,10 @@ def send_otp_notification(chat_id, phone, service, otp, message, price, country,
     except Exception as e:
         print(f"Send error: {e}")
 
-def send_number_received_notification(chat_id, numbers, service_name, range_code):
+def send_numbers_received_notification(chat_id, numbers, service_name, range_code):
+    # রেঞ্জ থেকে কান্ট্রি ডিটেক্ট
+    country_code, country_name, flag = get_country_info_from_range(range_code)
+    
     numbers_text = "\n".join([f"✅ `{num}`" for num in numbers])
     
     markup = InlineKeyboardMarkup(row_width=2)
@@ -449,13 +535,15 @@ def send_number_received_notification(chat_id, numbers, service_name, range_code
         ibtn("📢 OTP GROUP", url=OTP_GROUP_URL, style="primary"),
         ibtn("🔄 Change Number", callback_data=f"change_number_{service_name}_{range_code}", style="success")
     )
-    markup.add(ibtn("🔙 Back to Ranges", callback_data=f"back_to_ranges_{service_name}", style="danger"))
+    markup.add(ibtn("🔙 Back to Services", callback_data="back_to_services", style="danger"))
     
     msg = f"""🎯 Numbers Received!
 
+{flag} {country_code}
 {numbers_text}
 
 🎯 Service: {service_name}
+🌍 Country: {country_name} {flag}
 
 💡 OTP will appear here automatically!
 💰 Earn {get_settings()['otp_price']} BDT per OTP"""
@@ -480,19 +568,19 @@ def get_admin_keyboard():
 
 def get_service_keyboard():
     markup = InlineKeyboardMarkup()
-    markup.add(ibtn("📘 Facebook", callback_data="srv_facebook", style="primary"))
-    markup.add(ibtn("📸 Instagram", callback_data="srv_instagram", style="danger"))
-    markup.row(ibtn("🔙 Back", callback_data="back_main_menu", style="danger"))
+    markup.add(ibtn("📘 Facebook + Instagram", callback_data="srv_combined", style="primary"))
+    markup.row(ibtn("🔙 Back", callback_data="main_menu", style="danger"))
     return markup
 
-def get_range_keyboard(ranges, service):
+def get_range_keyboard(ranges_data, service_type):
     markup = InlineKeyboardMarkup()
-    for i, r in enumerate(ranges[:10]):
+    # ranges_data হল (raw_range, display_text) টাপলের লিস্ট
+    for i, (raw_range, display_text) in enumerate(ranges_data[:12]):
         style = "primary" if i % 2 == 0 else "success"
-        country_name, flag, short = get_country_info(r)
-        markup.add(ibtn(f"{flag} {short} — {r}", callback_data=f"rng_{service}_{r}", style=style))
-    markup.add(ibtn("🔄 Refresh", callback_data=f"refresh_{service}", style="primary"))
-    markup.add(ibtn("🔙 Back", callback_data="back_to_services", style="danger"))
+        markup.add(ibtn(display_text, callback_data=f"range_{service_type}_{raw_range}", style=style))
+    
+    markup.add(ibtn("🔄 Refresh", callback_data=f"refresh_{service_type}", style="primary"))
+    markup.add(ibtn("🔙 Back to Services", callback_data="back_to_services", style="danger"))
     return markup
 
 # ==================== বট হ্যান্ডলার ====================
@@ -502,18 +590,16 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 def start(message):
     add_user(message.chat.id)
     if message.from_user.id == ADMIN_ID:
-        bot.send_message(message.chat.id, "👋 Welcome Admin!", reply_markup=get_admin_keyboard())
+        bot.send_message(message.chat.id, "👋 Welcome Admin!\n🌍 Panel: X-MNIT\n✅ Service: Facebook + Instagram\n✅ 2 Numbers per request\n✅ Country flags on ranges", reply_markup=get_admin_keyboard())
     else:
-        bot.send_message(
-            message.chat.id,
-            f"✨ Welcome {message.from_user.first_name}! ✨\n\n💰 Balance: {get_user_balance(message.chat.id)} BDT",
-            parse_mode="Markdown",
-            reply_markup=get_main_keyboard(message.chat.id)
-        )
+        bal = get_user_balance(message.chat.id)
+        bot.send_message(message.chat.id, 
+            f"✨ Welcome {message.from_user.first_name}! ✨\n\n💰 Balance: {bal} BDT\n🌍 Panel: X-MNIT\n✅ Service: Facebook + Instagram\n✅ 2 Numbers per request",
+            reply_markup=get_main_keyboard(message.chat.id))
 
 @bot.message_handler(func=lambda m: m.text == "🎲 GET NUMBER")
 def handle_get_number(message):
-    bot.send_message(message.chat.id, "🔍 Select Service:", reply_markup=get_service_keyboard())
+    bot.send_message(message.chat.id, "📱 Select Service:", reply_markup=get_service_keyboard())
 
 @bot.message_handler(func=lambda m: m.text == "💰 BALANCE")
 def handle_balance(message):
@@ -537,7 +623,7 @@ def back_main(message):
 @bot.message_handler(func=lambda m: m.text == "🛠 ADMIN PANEL")
 def admin_menu(message):
     if message.from_user.id == ADMIN_ID:
-        bot.send_message(message.chat.id, "Admin Panel:", reply_markup=get_admin_keyboard())
+        bot.send_message(message.chat.id, "🛠 Admin Panel:", reply_markup=get_admin_keyboard())
 
 def process_withdraw(message, amount):
     bkash = message.text.strip()
@@ -573,7 +659,7 @@ def admin_buttons(message):
         users = len(get_all_users())
         active = len(get_active_numbers())
         settings = get_settings()
-        bot.send_message(message.chat.id, f"📊 Stats\n👥 Users: {users}\n📱 Active: {active}\n💰 Price: {settings['otp_price']} BDT\n💳 Min: {settings['min_withdraw']} BDT")
+        bot.send_message(message.chat.id, f"📊 STATS\n👥 Users: {users}\n📱 Active: {active}\n💰 Price: {settings['otp_price']} BDT\n💳 Min: {settings['min_withdraw']} BDT")
     elif message.text == "⚙️ PRICE":
         msg = bot.send_message(message.chat.id, "💰 Enter new OTP price:")
         bot.register_next_step_handler(msg, edit_price)
@@ -584,15 +670,16 @@ def admin_buttons(message):
             return
         for w in pending:
             markup = InlineKeyboardMarkup()
-            markup.row(ibtn("✅ Approve", callback_data=f"approve_{w['id']}", style="success"), ibtn("❌ Reject", callback_data=f"reject_{w['id']}", style="danger"))
-            bot.send_message(message.chat.id, f"📥 Request #{w['id']}\nUser: {w['user_id']}\nAmount: {w['amount']} BDT\nBkash: {w['bkash']}", reply_markup=markup)
+            markup.row(ibtn("✅ Approve", callback_data=f"approve_{w['id']}", style="success"), 
+                      ibtn("❌ Reject", callback_data=f"reject_{w['id']}", style="danger"))
+            bot.send_message(message.chat.id, f"📥 REQUEST #{w['id']}\nUser: {w['user_id']}\nAmount: {w['amount']} BDT\nBkash: {w['bkash']}", reply_markup=markup)
 
 def broadcast_msg(message):
     users = get_all_users()
     success = 0
     for uid in users:
         try:
-            bot.send_message(uid, f"📢 Broadcast\n\n{message.text}")
+            bot.send_message(uid, f"📢 BROADCAST\n\n{message.text}")
             success += 1
             time.sleep(0.05)
         except:
@@ -605,7 +692,7 @@ def edit_price(message):
         settings = get_settings()
         settings["otp_price"] = price
         save_settings(settings)
-        bot.send_message(message.chat.id, f"✅ Price set to {price} BDT!")
+        bot.send_message(message.chat.id, f"✅ OTP Price set to {price} BDT!")
     except:
         bot.send_message(message.chat.id, "❌ Invalid!")
 
@@ -621,72 +708,75 @@ def handle_callback(call):
         bot.answer_callback_query(call.id, f"✅ OTP Copied: {otp_code}", show_alert=True)
         return
     
-    if data == "back_main_menu":
-        bot.edit_message_text("🏠 Main Menu", chat_id, msg_id)
+    if data == "main_menu":
+        bot.delete_message(chat_id, msg_id)
+        bot.send_message(chat_id, "🏠 Main Menu", reply_markup=get_main_keyboard(chat_id))
         bot.answer_callback_query(call.id)
         return
     
     if data == "back_to_services":
-        bot.edit_message_text("🔍 Select Service:", chat_id, msg_id, reply_markup=get_service_keyboard())
+        bot.edit_message_text("📱 Select Service:", chat_id, msg_id, reply_markup=get_service_keyboard())
         bot.answer_callback_query(call.id)
         return
     
     if data.startswith("refresh_"):
-        service = data.split("_")[1].upper()
-        ranges = get_live_ranges(service)
-        if ranges:
-            bot.edit_message_text(f"🔥 Live Ranges for {service}:", chat_id, msg_id, reply_markup=get_range_keyboard(ranges, service.lower()))
+        service_type = data.split("_")[1]
+        if service_type == "combined":
+            ranges_data = get_combined_fb_ig_ranges()
+            display_name = "Facebook + Instagram"
+        else:
+            ranges_data = get_combined_fb_ig_ranges()
+            display_name = "Facebook + Instagram"
+        
+        if ranges_data:
+            bot.edit_message_text(f"🔥 Live Ranges for {display_name}:", chat_id, msg_id, 
+                                reply_markup=get_range_keyboard(ranges_data, service_type))
         else:
             bot.edit_message_text("❌ No ranges found!", chat_id, msg_id)
         bot.answer_callback_query(call.id)
         return
     
-    if data.startswith("back_to_ranges_"):
-        service = data.split("_")[3].upper()
-        ranges = get_live_ranges(service)
-        if ranges:
-            bot.edit_message_text(f"🔥 Live Ranges for {service}:", chat_id, msg_id, reply_markup=get_range_keyboard(ranges, service.lower()))
-        else:
-            bot.edit_message_text("❌ No ranges found!", chat_id, msg_id)
-        bot.answer_callback_query(call.id)
-        return
-    
-    if data.startswith("srv_"):
-        service = data.split("_")[1].upper()
-        ranges = get_live_ranges(service)
-        if ranges:
-            bot.edit_message_text(f"🔥 Live Ranges for {service}:", chat_id, msg_id, reply_markup=get_range_keyboard(ranges, service.lower()))
+    if data == "srv_combined":
+        ranges_data = get_combined_fb_ig_ranges()
+        if ranges_data:
+            bot.edit_message_text("🔥 Live Ranges for Facebook + Instagram:", chat_id, msg_id, 
+                                reply_markup=get_range_keyboard(ranges_data, "combined"))
         else:
             bot.edit_message_text("❌ No ranges found!", chat_id, msg_id, reply_markup=get_service_keyboard())
         bot.answer_callback_query(call.id)
         return
     
-    if data.startswith("rng_"):
+    if data.startswith("range_"):
         parts = data.split("_")
-        service = parts[1].upper()
+        service_type = parts[1]
         range_code = parts[2]
         
-        bot.edit_message_text(f"⏳ Getting 2 numbers from `{range_code}`...", chat_id, msg_id, parse_mode="Markdown")
+        service_name = "Facebook/Instagram"
+        
+        bot.edit_message_text(f"⏳ Getting 2 numbers from {format_range_with_flag(range_code)}...", chat_id, msg_id, parse_mode="Markdown")
         
         numbers_found = []
         for i in range(2):
-            number = fetch_number(range_code)
+            number = xmnit_fetch_number(range_code)
             if number:
                 numbers_found.append(number)
-                add_active_number(number, chat_id, service.capitalize(), range_code)
+                add_active_number(number, chat_id, service_name, range_code)
             time.sleep(0.5)
         
         if numbers_found:
             bot.delete_message(chat_id, msg_id)
-            send_number_received_notification(chat_id, numbers_found, service.capitalize(), range_code)
+            send_numbers_received_notification(chat_id, numbers_found, service_name, range_code)
         else:
-            bot.edit_message_text(f"❌ No number available!\n\nTry another range.", chat_id, msg_id, reply_markup=get_range_keyboard(get_live_ranges(service), service.lower()))
+            new_ranges = get_combined_fb_ig_ranges()
+            bot.edit_message_text(f"❌ No numbers available!\nTry another range.", chat_id, msg_id, 
+                                reply_markup=get_range_keyboard(new_ranges, service_type))
+        
         bot.answer_callback_query(call.id)
         return
     
     if data.startswith("change_number_"):
         parts = data.split("_")
-        service = parts[2]
+        service_name = parts[2]
         range_code = parts[3]
         
         bot.delete_message(chat_id, msg_id)
@@ -694,18 +784,19 @@ def handle_callback(call):
         
         numbers_found = []
         for i in range(2):
-            number = fetch_number(range_code)
+            number = xmnit_fetch_number(range_code)
             if number:
                 numbers_found.append(number)
-                add_active_number(number, chat_id, service, range_code)
+                add_active_number(number, chat_id, service_name, range_code)
             time.sleep(0.5)
         
         bot.delete_message(chat_id, loading_msg.message_id)
         
         if numbers_found:
-            send_number_received_notification(chat_id, numbers_found, service, range_code)
+            send_numbers_received_notification(chat_id, numbers_found, service_name, range_code)
         else:
             bot.send_message(chat_id, "❌ No numbers available!", reply_markup=get_service_keyboard())
+        
         bot.answer_callback_query(call.id)
         return
     
@@ -747,35 +838,29 @@ sent_otps = set()
 
 def otp_monitor():
     global sent_otps
-    print("🔄 OTP Monitor Started (Using Full SMS)")
+    print("🔄 X-MNIT OTP Monitor Started")
     while True:
         try:
             settings = get_settings()
             price = settings.get("otp_price", 5.0)
-            otps = check_otp()
+            otps = xmnit_check_otp()
             
             for otp_data in otps:
                 phone = otp_data["phone"]
-                message = otp_data["message"]
-                extracted_otp = otp_data["otp"]
+                key = f"{phone}_{otp_data['otp']}"
                 
-                unique_key = f"{phone}_{extracted_otp}"
-                
-                if unique_key not in sent_otps:
-                    sent_otps.add(unique_key)
-                    
+                if key not in sent_otps:
+                    sent_otps.add(key)
                     active = get_active_numbers()
+                    
                     if str(phone) in active:
-                        chat_id = active[str(phone)]["chat_id"]
-                        service = active[str(phone)]["service"]
-                        country = active[str(phone)]["country"]
-                        flag = active[str(phone)]["country_flag"]
-                        country_short = active[str(phone)]["country_short"]
-                        
-                        update_user_balance(chat_id, price)
-                        send_otp_notification(chat_id, phone, service, extracted_otp, message, price, country, flag, country_short)
+                        a = active[str(phone)]
+                        update_user_balance(a["chat_id"], price)
+                        send_otp_notification(a["chat_id"], phone, a["service"], otp_data["otp"], 
+                                             otp_data["message"], price, a["country_name"], 
+                                             a["country_flag"], a["country_code"])
                         remove_active_number(phone)
-                        print(f"📱 OTP Found: {phone} | {service} | OTP: {extracted_otp}")
+                        print(f"📱 OTP Received: {phone} | {a['service']} | {otp_data['otp']}")
             
             if len(sent_otps) > 1000:
                 sent_otps.clear()
@@ -786,20 +871,29 @@ def otp_monitor():
 
 # ==================== মেইন ====================
 if __name__ == "__main__":
-    print("=" * 60)
-    print("🤖 OTP BOT (Full SMS Based OTP Extraction)")
-    print("=" * 60)
-    print("✅ OTP extracted from FULL SMS message")
-    print("✅ Supports: 828-828 -> 828828")
-    print("✅ Supports: confirm code 283 283 -> 283283")
-    print("✅ Supports: 82739 -> 82739")
-    print("✅ Supports: 82729382 -> 82729382")
-    print("=" * 60)
+    print("=" * 50)
+    print("X-MNIT OTP BOT (Facebook + Instagram Only)")
+    print("=" * 50)
+    print("✅ Service: Facebook + Instagram")
+    print("✅ Countries: All 240+ countries supported")
+    print("✅ Auto-detect country from range prefix")
+    print("✅ 2 Numbers per request")
+    print("=" * 50)
     
-    mk_login()
+    settings = get_settings()
+    print(f"💰 OTP Price: {settings['otp_price']} BDT")
+    print(f"💳 Min Withdraw: {settings['min_withdraw']} BDT")
+    
+    print("\n🔍 Logging in...")
+    if xmnit_login():
+        print("✅ Login Successful!")
+    else:
+        print("⚠️ Login Failed - check credentials")
+    
+    print("\n🤖 Bot Starting...")
     threading.Thread(target=otp_monitor, daemon=True).start()
     
     print("✅ Bot Running!")
-    print("=" * 60)
+    print("=" * 50)
     
     bot.infinity_polling(timeout=60)
