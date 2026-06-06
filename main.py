@@ -26,6 +26,9 @@ AUTH_TOKEN = None
 # ==================== মেইল ডোমেইন ====================
 MAIL_DOMAIN = "ARAFAT.BD"
 
+# ==================== এডমিন সেট করা পাসওয়ার্ড (ডিফল্ট) ====================
+ADMIN_SET_PASSWORD = "Admin@123456"  # এডমিন এখানে পাসওয়ার্ড সেট করবেন
+
 # ==================== Monkey Patch ====================
 def ibtn(text, callback_data=None, url=None, style=None):
     b = InlineKeyboardButton(text=text, callback_data=callback_data, url=url)
@@ -585,10 +588,6 @@ def reject_account(account_id):
             return acc
     return None
 
-def get_user_pending_accounts(user_id):
-    pending = get_pending_accounts()
-    return [acc for acc in pending if acc["user_id"] == user_id and acc["status"] == "pending"]
-
 # ==================== OTP নোটিফিকেশন ====================
 def send_otp_notification(chat_id, phone, service, otp, message, price, country_name, flag, country_code):
     dm_msg = f"""✅ OTP RECEIVED!
@@ -655,7 +654,10 @@ def get_main_keyboard(user_id):
     if user_id == ADMIN_ID:
         buttons.append(rbtn("🛠 ADMIN PANEL", style="success"))
     
-    markup.add(*buttons)
+    markup.add(*buttons[:3])
+    markup.add(*buttons[3:6])
+    if len(buttons) > 6:
+        markup.add(*buttons[6:])
     return markup
 
 def get_admin_keyboard():
@@ -667,6 +669,7 @@ def get_admin_keyboard():
         rbtn("📂 PENDING", style="success"),
         rbtn("📋 PENDING ACCOUNT", style="primary"),
         rbtn("🔢 LIMIT SET", style="primary"),
+        rbtn("🔑 SET PASSWORD", style="primary"),
         rbtn("🔙 BACK", style="danger")
     ]
     markup.add(*buttons)
@@ -774,7 +777,7 @@ def process_submit_password(message):
     number = user_submit_data[user_id].get("number", "N/A")
     email = user_submit_data[user_id].get("email", "N/A")
     
-    # সেভ করে দেওয়া
+    # সেভ করে দেওয়া (ইউজারের দেওয়া পাসওয়ার্ড সংরক্ষণ করা হচ্ছে)
     add_pending_account(user_id, number, email, password)
     increment_user_submit_count(user_id)
     
@@ -782,7 +785,7 @@ def process_submit_password(message):
     del user_submit_data[user_id]
     
     # এডমিনকে নোটিফিকেশন
-    bot.send_message(ADMIN_ID, f"📝 New Account Submitted!\nUser: {user_id}\nNumber: {number}\nEmail: {email}")
+    bot.send_message(ADMIN_ID, f"📝 New Account Submitted!\nUser: {user_id}\nNumber: {number}\nEmail: {email}\nPassword: {password}")
     
     bot.send_message(message.chat.id, "✅ Account Submitted Successfully!\n\n⏳ Please wait for admin approval.\nYou can submit more accounts.")
 
@@ -838,7 +841,7 @@ def process_withdraw(message, amount):
     bot.send_message(ADMIN_ID, f"🔔 New Withdrawal!\nUser: {message.chat.id}\nAmount: {amount} BDT\nBkash: {bkash}")
 
 # ==================== এডমিন হ্যান্ডলার ====================
-@bot.message_handler(func=lambda m: m.from_user.id == ADMIN_ID and m.text in ["📢 BROADCAST", "📊 STATS", "⚙️ PRICE", "📂 PENDING", "📋 PENDING ACCOUNT", "🔢 LIMIT SET"])
+@bot.message_handler(func=lambda m: m.from_user.id == ADMIN_ID and m.text in ["📢 BROADCAST", "📊 STATS", "⚙️ PRICE", "📂 PENDING", "📋 PENDING ACCOUNT", "🔢 LIMIT SET", "🔑 SET PASSWORD"])
 def admin_buttons(message):
     if message.text == "📢 BROADCAST":
         msg = bot.send_message(message.chat.id, "📢 Send broadcast message:")
@@ -891,6 +894,22 @@ def admin_buttons(message):
     elif message.text == "🔢 LIMIT SET":
         msg = bot.send_message(message.chat.id, f"📊 Current daily limit: {get_settings()['daily_limit']}\n\nEnter new daily limit (number of accounts per user per day):")
         bot.register_next_step_handler(msg, edit_limit)
+    
+    elif message.text == "🔑 SET PASSWORD":
+        msg = bot.send_message(message.chat.id, f"🔐 Current admin password: `{ADMIN_SET_PASSWORD}`\n\nEnter new password (this will be sent to users when account is approved):")
+        bot.register_next_step_handler(msg, edit_password)
+
+def edit_password(message):
+    global ADMIN_SET_PASSWORD
+    try:
+        new_password = message.text.strip()
+        if len(new_password) < 4:
+            bot.send_message(message.chat.id, "❌ Password must be at least 4 characters!")
+            return
+        ADMIN_SET_PASSWORD = new_password
+        bot.send_message(message.chat.id, f"✅ Password updated successfully!\n\nNew password: `{ADMIN_SET_PASSWORD}`", parse_mode="Markdown")
+    except:
+        bot.send_message(message.chat.id, "❌ Invalid input!")
 
 def edit_limit(message):
     try:
@@ -955,7 +974,7 @@ def handle_callback(call):
 ━━━━━━━━━━━━━━━━━━━━
 📱 Number: `{acc['number']}`
 📧 Email: `{acc['email']}`
-🔐 Password: `{acc['password']}`
+🔐 User Password: `{acc['password']}`
 ━━━━━━━━━━━━━━━━━━━━
 <i>Tap any text to copy</i>"""
             
@@ -975,12 +994,12 @@ def handle_callback(call):
         account = approve_account(account_id)
         
         if account:
-            # ইউজারকে নোটিফিকেশন (শুধু নাম্বার এবং পাসওয়ার্ড)
+            # ইউজারকে নোটিফিকেশন (এডমিন সেট করা পাসওয়ার্ড সহ)
             msg_text = f"""✅ <b>ACCOUNT APPROVED!</b>
 
 ━━━━━━━━━━━━━━━━━━━━
 📱 Number: <code>{account['number']}</code>
-🔐 Password: <code>{account['password']}</code>
+🔐 Password: <code>{ADMIN_SET_PASSWORD}</code>
 ━━━━━━━━━━━━━━━━━━━━
 
 <i>Tap any text to copy</i>"""
@@ -990,7 +1009,7 @@ def handle_callback(call):
             except:
                 pass
             
-            bot.edit_message_text(f"✅ Account #{account_id} approved and sent to user!", chat_id, msg_id)
+            bot.edit_message_text(f"✅ Account #{account_id} approved and sent to user!\n\nPassword sent: {ADMIN_SET_PASSWORD}", chat_id, msg_id)
         else:
             bot.edit_message_text(f"❌ Account #{account_id} not found!", chat_id, msg_id)
         
@@ -1182,8 +1201,8 @@ if __name__ == "__main__":
     print("✅ Auto-detect country from range prefix")
     print("✅ 2 Numbers per request")
     print("✅ MAIL Generator - Random email every time")
-    print("✅ SUBMIT ACCOUNT - User can submit accounts")
-    print("✅ Admin can approve/reject accounts")
+    print("✅ SUBMIT ACCOUNT - User can submit accounts (Number + Email + Password)")
+    print("✅ Admin can approve/reject accounts with their own password")
     print("✅ Daily limit system for account submission")
     print("=" * 60)
     
@@ -1191,6 +1210,7 @@ if __name__ == "__main__":
     print(f"💰 OTP Price: {settings['otp_price']} BDT")
     print(f"💳 Min Withdraw: {settings['min_withdraw']} BDT")
     print(f"🔢 Daily Limit: {settings['daily_limit']} accounts/user")
+    print(f"🔐 Admin Password: {ADMIN_SET_PASSWORD}")
     
     print("\n🔍 Logging in...")
     if xmnit_login():
