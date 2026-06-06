@@ -4,7 +4,9 @@ import threading
 import re
 import json
 import os
-from datetime import datetime
+import random
+import string
+from datetime import datetime, timedelta
 import telebot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -20,6 +22,20 @@ OTP_GROUP_URL = "https://t.me/power_otp_botx"
 LOGIN_EMAIL = "minhajurrahmanrabbi20@gmail.com"
 LOGIN_PASSWORD = "minhajur_rahman_rabbi_"
 AUTH_TOKEN = None
+
+# ==================== মেইল ডোমেইন ====================
+MAIL_DOMAIN = "ARAFAT.BD"
+
+# ==================== Monkey Patch ====================
+def ibtn(text, callback_data=None, url=None, style=None):
+    b = InlineKeyboardButton(text=text, callback_data=callback_data, url=url)
+    if style: b.style = style
+    return b
+
+def rbtn(text, style=None):
+    b = KeyboardButton(text=text)
+    if style: b.style = style
+    return b
 
 # ==================== কান্ট্রি ফ্ল্যাগ এবং কোড ম্যাপ (প্রিফিক্স অনুযায়ী) ====================
 COUNTRY_FLAGS = {
@@ -157,9 +173,7 @@ PREFIX_TO_COUNTRY = {
 
 def get_country_info_from_range(range_code):
     """রেঞ্জ কোড থেকে কান্ট্রি তথ্য বের করে (যেমন: 880XXXXXXX থেকে 880)"""
-    # X বাদ দিয়ে শুধু সংখ্যা নিন
     range_str = str(range_code).replace("X", "").strip()
-    # সর্বোচ্চ 4 ডিজিট পর্যন্ত চেক করুন
     for length in range(4, 0, -1):
         prefix = range_str[:length]
         if prefix in PREFIX_TO_COUNTRY:
@@ -173,6 +187,18 @@ def format_range_with_flag(range_code):
     """রেঞ্জের সাথে ফ্ল্যাগ যোগ করে (যেমন: 🇧🇩 880XXXXXXX)"""
     country_code, country_name, flag = get_country_info_from_range(range_code)
     return f"{flag} {range_code}"
+
+# ==================== র‍্যান্ডম মেইল জেনারেটর ====================
+used_emails = set()
+
+def generate_random_email():
+    """ইউনিক র‍্যান্ডম মেইল জেনারেট করে"""
+    while True:
+        random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=12))
+        email = f"{random_string}@{MAIL_DOMAIN}"
+        if email not in used_emails:
+            used_emails.add(email)
+            return email
 
 # ==================== XMNIT লগইন ====================
 def xmnit_login():
@@ -228,7 +254,6 @@ def xmnit_get_live_ranges(service):
                     rng = log.get("range")
                     if rng:
                         range_str = str(rng).upper().strip()
-                        # XXXXXX ফরম্যাটে রূপান্তর (শেষে X যোগ করুন)
                         if not range_str.endswith('X'):
                             digits_only = re.sub(r'[^0-9]', '', range_str)
                             if digits_only:
@@ -238,12 +263,10 @@ def xmnit_get_live_ranges(service):
                                 else:
                                     range_str = digits_only + "XXXXX"
                         ranges.append(range_str)
-            # ইউনিক রেঞ্জ
             ranges = list(dict.fromkeys(ranges))
-            # ফ্ল্যাগ সহ সাজান
             ranges_with_flags = [(format_range_with_flag(r), r) for r in ranges]
             ranges_with_flags.sort(key=lambda x: x[0])
-            return [(r[1], r[0]) for r in ranges_with_flags]  # (raw_range, display_text)
+            return [(r[1], r[0]) for r in ranges_with_flags]
     except Exception as e:
         print(f"Ranges error: {e}")
     return []
@@ -251,14 +274,12 @@ def xmnit_get_live_ranges(service):
 def get_combined_fb_ig_ranges():
     fb_data = xmnit_get_live_ranges("facebook")
     ig_data = xmnit_get_live_ranges("instagram")
-    # ইউনিক রেঞ্জ
     all_ranges = {}
     for rng, display in fb_data:
         all_ranges[rng] = display
     for rng, display in ig_data:
         if rng not in all_ranges:
             all_ranges[rng] = display
-    # সাজান
     sorted_items = sorted(all_ranges.items(), key=lambda x: x[1])
     return [(rng, display) for rng, display in sorted_items]
 
@@ -380,31 +401,24 @@ def mask_number(phone):
         return phone_str[:7] + "XXX" + phone_str[-2:]
     return phone_str
 
-# ==================== Monkey Patch ====================
-def ibtn(text, callback_data=None, url=None, style=None):
-    b = InlineKeyboardButton(text=text, callback_data=callback_data, url=url)
-    if style: b.style = style
-    return b
-
-def rbtn(text, style=None):
-    b = KeyboardButton(text=text)
-    if style: b.style = style
-    return b
-
 # ==================== ডাটাবেস ====================
 USER_DB = "xmnit_users.json"
 USER_DATA_DB = "xmnit_user_data.json"
 SETTINGS_DB = "xmnit_settings.json"
 WITHDRAWALS_DB = "xmnit_withdrawals.json"
 ACTIVE_NUMBERS_DB = "xmnit_active_numbers.json"
+PENDING_ACCOUNTS_DB = "xmnit_pending_accounts.json"
+USER_SUBMIT_LIMIT_DB = "xmnit_user_submit_limit.json"
 
 def init_databases():
     files = {
         USER_DB: [],
         USER_DATA_DB: {},
-        SETTINGS_DB: {"otp_price": 5.0, "min_withdraw": 50.0},
+        SETTINGS_DB: {"otp_price": 5.0, "min_withdraw": 50.0, "daily_limit": 10},
         WITHDRAWALS_DB: [],
-        ACTIVE_NUMBERS_DB: {}
+        ACTIVE_NUMBERS_DB: {},
+        PENDING_ACCOUNTS_DB: [],
+        USER_SUBMIT_LIMIT_DB: {}
     }
     for file, default in files.items():
         if not os.path.exists(file):
@@ -472,7 +486,6 @@ def save_active_numbers(numbers):
         json.dump(numbers, f)
 
 def add_active_number(phone, chat_id, service, range_code):
-    # রেঞ্জ থেকে কান্ট্রি ডিটেক্ট
     country_code, country_name, flag = get_country_info_from_range(range_code)
     
     data = get_active_numbers()
@@ -486,7 +499,6 @@ def add_active_number(phone, chat_id, service, range_code):
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
     save_active_numbers(data)
-    print(f"✅ Saved: {phone} ({service}) - {country_name} {flag}")
 
 def remove_active_number(phone):
     data = get_active_numbers()
@@ -494,10 +506,91 @@ def remove_active_number(phone):
         del data[str(phone)]
         save_active_numbers(data)
 
+# ==================== অ্যাকাউন্ট সাবমিট লিমিট ফাংশন ====================
+def get_user_today_submit_count(user_id):
+    with open(USER_SUBMIT_LIMIT_DB, "r") as f:
+        data = json.load(f)
+    
+    uid = str(user_id)
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    if uid not in data:
+        return 0
+    
+    if data[uid].get("date") != today:
+        return 0
+    
+    return data[uid].get("count", 0)
+
+def increment_user_submit_count(user_id):
+    with open(USER_SUBMIT_LIMIT_DB, "r") as f:
+        data = json.load(f)
+    
+    uid = str(user_id)
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    if uid not in data or data[uid].get("date") != today:
+        data[uid] = {"date": today, "count": 1}
+    else:
+        data[uid]["count"] += 1
+    
+    with open(USER_SUBMIT_LIMIT_DB, "w") as f:
+        json.dump(data, f)
+
+def can_user_submit(user_id):
+    settings = get_settings()
+    daily_limit = settings.get("daily_limit", 10)
+    today_count = get_user_today_submit_count(user_id)
+    return today_count < daily_limit
+
+# ==================== পেন্ডিং অ্যাকাউন্ট ফাংশন ====================
+def add_pending_account(user_id, number, email, password):
+    pending = get_pending_accounts()
+    account_id = len(pending) + 1
+    pending.append({
+        "id": account_id,
+        "user_id": user_id,
+        "number": number,
+        "email": email,
+        "password": password,
+        "status": "pending",
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    save_pending_accounts(pending)
+    return account_id
+
+def get_pending_accounts():
+    with open(PENDING_ACCOUNTS_DB, "r") as f:
+        return json.load(f)
+
+def save_pending_accounts(accounts):
+    with open(PENDING_ACCOUNTS_DB, "w") as f:
+        json.dump(accounts, f)
+
+def approve_account(account_id):
+    pending = get_pending_accounts()
+    for acc in pending:
+        if acc["id"] == account_id:
+            acc["status"] = "approved"
+            save_pending_accounts(pending)
+            return acc
+    return None
+
+def reject_account(account_id):
+    pending = get_pending_accounts()
+    for acc in pending:
+        if acc["id"] == account_id:
+            acc["status"] = "rejected"
+            save_pending_accounts(pending)
+            return acc
+    return None
+
+def get_user_pending_accounts(user_id):
+    pending = get_pending_accounts()
+    return [acc for acc in pending if acc["user_id"] == user_id and acc["status"] == "pending"]
+
 # ==================== OTP নোটিফিকেশন ====================
 def send_otp_notification(chat_id, phone, service, otp, message, price, country_name, flag, country_code):
-    masked = mask_number(phone)
-    
     dm_msg = f"""✅ OTP RECEIVED!
 ━━━━━━━━━━━━━━━━━━━━
 📱 Number: `{phone}`
@@ -525,7 +618,6 @@ def send_otp_notification(chat_id, phone, service, otp, message, price, country_
         print(f"Send error: {e}")
 
 def send_numbers_received_notification(chat_id, numbers, service_name, range_code):
-    # রেঞ্জ থেকে কান্ট্রি ডিটেক্ট
     country_code, country_name, flag = get_country_info_from_range(range_code)
     
     numbers_text = "\n".join([f"✅ `{num}`" for num in numbers])
@@ -552,18 +644,32 @@ def send_numbers_received_notification(chat_id, numbers, service_name, range_cod
 
 # ==================== কীবোর্ড ====================
 def get_main_keyboard(user_id):
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(rbtn("🎲 GET NUMBER", style="primary"))
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    buttons = [
+        rbtn("🎲 GET NUMBER", style="primary"),
+        rbtn("📩 MAIL", style="primary"),
+        rbtn("📝 SUBMIT ACCOUNT", style="primary"),
+        rbtn("💰 BALANCE", style="success"),
+        rbtn("💳 WITHDRAWAL", style="success")
+    ]
     if user_id == ADMIN_ID:
-        markup.row(rbtn("🛠 ADMIN PANEL", style="success"))
-    markup.row(rbtn("💰 BALANCE", style="success"), rbtn("💳 WITHDRAWAL", style="success"))
+        buttons.append(rbtn("🛠 ADMIN PANEL", style="success"))
+    
+    markup.add(*buttons)
     return markup
 
 def get_admin_keyboard():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.row(rbtn("📢 BROADCAST", style="primary"), rbtn("📊 STATS", style="primary"))
-    markup.row(rbtn("⚙️ PRICE", style="success"), rbtn("📂 PENDING", style="success"))
-    markup.row(rbtn("🔙 BACK", style="danger"))
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    buttons = [
+        rbtn("📢 BROADCAST", style="primary"),
+        rbtn("📊 STATS", style="primary"),
+        rbtn("⚙️ PRICE", style="success"),
+        rbtn("📂 PENDING", style="success"),
+        rbtn("📋 PENDING ACCOUNT", style="primary"),
+        rbtn("🔢 LIMIT SET", style="primary"),
+        rbtn("🔙 BACK", style="danger")
+    ]
+    markup.add(*buttons)
     return markup
 
 def get_service_keyboard():
@@ -574,7 +680,6 @@ def get_service_keyboard():
 
 def get_range_keyboard(ranges_data, service_type):
     markup = InlineKeyboardMarkup()
-    # ranges_data হল (raw_range, display_text) টাপলের লিস্ট
     for i, (raw_range, display_text) in enumerate(ranges_data[:12]):
         style = "primary" if i % 2 == 0 else "success"
         markup.add(ibtn(display_text, callback_data=f"range_{service_type}_{raw_range}", style=style))
@@ -585,6 +690,9 @@ def get_range_keyboard(ranges_data, service_type):
 
 # ==================== বট হ্যান্ডলার ====================
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
+# অ্যাকাউন্ট সাবমিট করার জন্য টেম্প স্টোর
+user_submit_data = {}
 
 @bot.message_handler(commands=['start'])
 def start(message):
@@ -600,6 +708,83 @@ def start(message):
 @bot.message_handler(func=lambda m: m.text == "🎲 GET NUMBER")
 def handle_get_number(message):
     bot.send_message(message.chat.id, "📱 Select Service:", reply_markup=get_service_keyboard())
+
+@bot.message_handler(func=lambda m: m.text == "📩 MAIL")
+def handle_mail(message):
+    email = generate_random_email()
+    msg_text = f"""📧 <b>Generated Email</b>
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃                            ┃
+┃      <code>{email}</code>      ┃
+┃                            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+<i>Tap the email to copy</i>"""
+    
+    bot.send_message(message.chat.id, msg_text, parse_mode="HTML")
+
+@bot.message_handler(func=lambda m: m.text == "📝 SUBMIT ACCOUNT")
+def handle_submit_account(message):
+    user_id = message.chat.id
+    
+    # চেক লিমিট
+    if not can_user_submit(user_id):
+        settings = get_settings()
+        bot.send_message(message.chat.id, f"❌ LIMIT OVER!\n\nYou can only submit {settings['daily_limit']} accounts per day.\nPlease try again tomorrow.")
+        return
+    
+    user_submit_data[user_id] = {"step": "number"}
+    msg = bot.send_message(message.chat.id, "📱 Please send your NUMBER:")
+    bot.register_next_step_handler(msg, process_submit_number)
+
+def process_submit_number(message):
+    user_id = message.chat.id
+    number = message.text.strip()
+    
+    if user_id not in user_submit_data:
+        user_submit_data[user_id] = {}
+    
+    user_submit_data[user_id]["number"] = number
+    user_submit_data[user_id]["step"] = "email"
+    
+    msg = bot.send_message(message.chat.id, "📧 Please send your EMAIL:")
+    bot.register_next_step_handler(msg, process_submit_email)
+
+def process_submit_email(message):
+    user_id = message.chat.id
+    email = message.text.strip()
+    
+    if user_id not in user_submit_data:
+        user_submit_data[user_id] = {}
+    
+    user_submit_data[user_id]["email"] = email
+    user_submit_data[user_id]["step"] = "password"
+    
+    msg = bot.send_message(message.chat.id, "🔐 Please send your PASSWORD:")
+    bot.register_next_step_handler(msg, process_submit_password)
+
+def process_submit_password(message):
+    user_id = message.chat.id
+    password = message.text.strip()
+    
+    if user_id not in user_submit_data:
+        user_submit_data[user_id] = {}
+    
+    number = user_submit_data[user_id].get("number", "N/A")
+    email = user_submit_data[user_id].get("email", "N/A")
+    
+    # সেভ করে দেওয়া
+    add_pending_account(user_id, number, email, password)
+    increment_user_submit_count(user_id)
+    
+    # টেম্প ডাটা ক্লিয়ার
+    del user_submit_data[user_id]
+    
+    # এডমিনকে নোটিফিকেশন
+    bot.send_message(ADMIN_ID, f"📝 New Account Submitted!\nUser: {user_id}\nNumber: {number}\nEmail: {email}")
+    
+    bot.send_message(message.chat.id, "✅ Account Submitted Successfully!\n\n⏳ Please wait for admin approval.\nYou can submit more accounts.")
 
 @bot.message_handler(func=lambda m: m.text == "💰 BALANCE")
 def handle_balance(message):
@@ -618,7 +803,10 @@ def handle_withdraw(message):
 
 @bot.message_handler(func=lambda m: m.text == "🔙 BACK")
 def back_main(message):
-    bot.send_message(message.chat.id, "🏠 Main Menu", reply_markup=get_main_keyboard(message.chat.id))
+    if message.from_user.id == ADMIN_ID:
+        bot.send_message(message.chat.id, "🏠 Admin Menu", reply_markup=get_admin_keyboard())
+    else:
+        bot.send_message(message.chat.id, "🏠 Main Menu", reply_markup=get_main_keyboard(message.chat.id))
 
 @bot.message_handler(func=lambda m: m.text == "🛠 ADMIN PANEL")
 def admin_menu(message):
@@ -650,19 +838,23 @@ def process_withdraw(message, amount):
     bot.send_message(ADMIN_ID, f"🔔 New Withdrawal!\nUser: {message.chat.id}\nAmount: {amount} BDT\nBkash: {bkash}")
 
 # ==================== এডমিন হ্যান্ডলার ====================
-@bot.message_handler(func=lambda m: m.from_user.id == ADMIN_ID and m.text in ["📢 BROADCAST", "📊 STATS", "⚙️ PRICE", "📂 PENDING"])
+@bot.message_handler(func=lambda m: m.from_user.id == ADMIN_ID and m.text in ["📢 BROADCAST", "📊 STATS", "⚙️ PRICE", "📂 PENDING", "📋 PENDING ACCOUNT", "🔢 LIMIT SET"])
 def admin_buttons(message):
     if message.text == "📢 BROADCAST":
         msg = bot.send_message(message.chat.id, "📢 Send broadcast message:")
         bot.register_next_step_handler(msg, broadcast_msg)
+    
     elif message.text == "📊 STATS":
         users = len(get_all_users())
         active = len(get_active_numbers())
+        pending_accounts = len([a for a in get_pending_accounts() if a["status"] == "pending"])
         settings = get_settings()
-        bot.send_message(message.chat.id, f"📊 STATS\n👥 Users: {users}\n📱 Active: {active}\n💰 Price: {settings['otp_price']} BDT\n💳 Min: {settings['min_withdraw']} BDT")
+        bot.send_message(message.chat.id, f"📊 STATS\n👥 Users: {users}\n📱 Active: {active}\n📝 Pending Accounts: {pending_accounts}\n💰 Price: {settings['otp_price']} BDT\n💳 Min: {settings['min_withdraw']} BDT\n🔢 Daily Limit: {settings['daily_limit']}")
+    
     elif message.text == "⚙️ PRICE":
         msg = bot.send_message(message.chat.id, "💰 Enter new OTP price:")
         bot.register_next_step_handler(msg, edit_price)
+    
     elif message.text == "📂 PENDING":
         pending = [w for w in get_withdrawals() if w["status"] == "pending"]
         if not pending:
@@ -673,6 +865,45 @@ def admin_buttons(message):
             markup.row(ibtn("✅ Approve", callback_data=f"approve_{w['id']}", style="success"), 
                       ibtn("❌ Reject", callback_data=f"reject_{w['id']}", style="danger"))
             bot.send_message(message.chat.id, f"📥 REQUEST #{w['id']}\nUser: {w['user_id']}\nAmount: {w['amount']} BDT\nBkash: {w['bkash']}", reply_markup=markup)
+    
+    elif message.text == "📋 PENDING ACCOUNT":
+        pending_accounts = get_pending_accounts()
+        pending_list = [a for a in pending_accounts if a["status"] == "pending"]
+        
+        if not pending_list:
+            bot.send_message(message.chat.id, "📭 No pending accounts!")
+            return
+        
+        # ইউজার অনুযায়ী গ্রুপ করুন
+        user_accounts = {}
+        for acc in pending_list:
+            uid = acc["user_id"]
+            if uid not in user_accounts:
+                user_accounts[uid] = []
+            user_accounts[uid].append(acc)
+        
+        for uid, accounts in user_accounts.items():
+            user_info = f"👤 User: `{uid}`\n📝 Accounts: {len(accounts)}"
+            markup = InlineKeyboardMarkup()
+            markup.add(ibtn(f"View {uid}", callback_data=f"view_user_{uid}", style="primary"))
+            bot.send_message(message.chat.id, user_info, parse_mode="Markdown", reply_markup=markup)
+    
+    elif message.text == "🔢 LIMIT SET":
+        msg = bot.send_message(message.chat.id, f"📊 Current daily limit: {get_settings()['daily_limit']}\n\nEnter new daily limit (number of accounts per user per day):")
+        bot.register_next_step_handler(msg, edit_limit)
+
+def edit_limit(message):
+    try:
+        limit = int(message.text.strip())
+        if limit <= 0:
+            bot.send_message(message.chat.id, "❌ Limit must be greater than 0!")
+            return
+        settings = get_settings()
+        settings["daily_limit"] = limit
+        save_settings(settings)
+        bot.send_message(message.chat.id, f"✅ Daily limit set to {limit} accounts per user!")
+    except:
+        bot.send_message(message.chat.id, "❌ Invalid input! Please enter a number.")
 
 def broadcast_msg(message):
     users = get_all_users()
@@ -708,6 +939,82 @@ def handle_callback(call):
         bot.answer_callback_query(call.id, f"✅ OTP Copied: {otp_code}", show_alert=True)
         return
     
+    if data.startswith("view_user_"):
+        user_id = int(data.split("_")[2])
+        pending_accounts = get_pending_accounts()
+        user_accounts = [a for a in pending_accounts if a["user_id"] == user_id and a["status"] == "pending"]
+        
+        if not user_accounts:
+            bot.edit_message_text("No pending accounts for this user!", chat_id, msg_id)
+            bot.answer_callback_query(call.id)
+            return
+        
+        # প্রতিটি অ্যাকাউন্ট আলাদাভাবে দেখান
+        for acc in user_accounts:
+            acc_text = f"""📋 ACCOUNT #{acc['id']}
+━━━━━━━━━━━━━━━━━━━━
+📱 Number: `{acc['number']}`
+📧 Email: `{acc['email']}`
+🔐 Password: `{acc['password']}`
+━━━━━━━━━━━━━━━━━━━━
+<i>Tap any text to copy</i>"""
+            
+            markup = InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                ibtn("✅ APPROVE", callback_data=f"approve_acc_{acc['id']}", style="success"),
+                ibtn("❌ REJECT", callback_data=f"reject_acc_{acc['id']}", style="danger")
+            )
+            bot.send_message(chat_id, acc_text, parse_mode="Markdown", reply_markup=markup)
+        
+        bot.delete_message(chat_id, msg_id)
+        bot.answer_callback_query(call.id)
+        return
+    
+    if data.startswith("approve_acc_"):
+        account_id = int(data.split("_")[2])
+        account = approve_account(account_id)
+        
+        if account:
+            # ইউজারকে নোটিফিকেশন (শুধু নাম্বার এবং পাসওয়ার্ড)
+            msg_text = f"""✅ <b>ACCOUNT APPROVED!</b>
+
+━━━━━━━━━━━━━━━━━━━━
+📱 Number: <code>{account['number']}</code>
+🔐 Password: <code>{account['password']}</code>
+━━━━━━━━━━━━━━━━━━━━
+
+<i>Tap any text to copy</i>"""
+            
+            try:
+                bot.send_message(account["user_id"], msg_text, parse_mode="HTML")
+            except:
+                pass
+            
+            bot.edit_message_text(f"✅ Account #{account_id} approved and sent to user!", chat_id, msg_id)
+        else:
+            bot.edit_message_text(f"❌ Account #{account_id} not found!", chat_id, msg_id)
+        
+        bot.answer_callback_query(call.id)
+        return
+    
+    if data.startswith("reject_acc_"):
+        account_id = int(data.split("_")[2])
+        account = reject_account(account_id)
+        
+        if account:
+            # ইউজারকে নোটিফিকেশন
+            try:
+                bot.send_message(account["user_id"], "❌ ACCOUNT NOT VERIFIED!\n\nYour submitted account has been rejected. Please submit valid account.")
+            except:
+                pass
+            
+            bot.edit_message_text(f"❌ Account #{account_id} rejected!", chat_id, msg_id)
+        else:
+            bot.edit_message_text(f"❌ Account #{account_id} not found!", chat_id, msg_id)
+        
+        bot.answer_callback_query(call.id)
+        return
+    
     if data == "main_menu":
         bot.delete_message(chat_id, msg_id)
         bot.send_message(chat_id, "🏠 Main Menu", reply_markup=get_main_keyboard(chat_id))
@@ -721,12 +1028,8 @@ def handle_callback(call):
     
     if data.startswith("refresh_"):
         service_type = data.split("_")[1]
-        if service_type == "combined":
-            ranges_data = get_combined_fb_ig_ranges()
-            display_name = "Facebook + Instagram"
-        else:
-            ranges_data = get_combined_fb_ig_ranges()
-            display_name = "Facebook + Instagram"
+        ranges_data = get_combined_fb_ig_ranges()
+        display_name = "Facebook + Instagram"
         
         if ranges_data:
             bot.edit_message_text(f"🔥 Live Ranges for {display_name}:", chat_id, msg_id, 
@@ -871,18 +1174,23 @@ def otp_monitor():
 
 # ==================== মেইন ====================
 if __name__ == "__main__":
-    print("=" * 50)
-    print("X-MNIT OTP BOT (Facebook + Instagram Only)")
-    print("=" * 50)
+    print("=" * 60)
+    print("🤖 X-MNIT OTP BOT (Facebook + Instagram Only)")
+    print("=" * 60)
     print("✅ Service: Facebook + Instagram")
     print("✅ Countries: All 240+ countries supported")
     print("✅ Auto-detect country from range prefix")
     print("✅ 2 Numbers per request")
-    print("=" * 50)
+    print("✅ MAIL Generator - Random email every time")
+    print("✅ SUBMIT ACCOUNT - User can submit accounts")
+    print("✅ Admin can approve/reject accounts")
+    print("✅ Daily limit system for account submission")
+    print("=" * 60)
     
     settings = get_settings()
     print(f"💰 OTP Price: {settings['otp_price']} BDT")
     print(f"💳 Min Withdraw: {settings['min_withdraw']} BDT")
+    print(f"🔢 Daily Limit: {settings['daily_limit']} accounts/user")
     
     print("\n🔍 Logging in...")
     if xmnit_login():
@@ -894,6 +1202,6 @@ if __name__ == "__main__":
     threading.Thread(target=otp_monitor, daemon=True).start()
     
     print("✅ Bot Running!")
-    print("=" * 50)
+    print("=" * 60)
     
     bot.infinity_polling(timeout=60)
